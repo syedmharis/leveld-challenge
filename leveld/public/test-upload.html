@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test PDF Parser</title>
+  <style>
+    body { font-family: system-ui; max-width: 800px; margin: 50px auto; padding: 20px; }
+    input { margin: 20px 0; }
+    button { padding: 10px 20px; background: #000; color: #fff; border: none; cursor: pointer; }
+    pre { background: #f5f5f5; padding: 20px; overflow: auto; max-height: 500px; }
+    .stats { margin: 20px 0; padding: 10px; background: #e3f2fd; }
+  </style>
+</head>
+<body>
+  <h1>Test PDF Parser</h1>
+  
+  <input type="file" id="fileInput" accept=".pdf" />
+  <button onclick="uploadFile()">Parse PDF</button>
+  
+  <div id="stats" class="stats" style="display:none;"></div>
+  <div id="result"></div>
+
+  <script>
+    async function uploadFile() {
+      const input = document.getElementById('fileInput');
+      const file = input.files[0];
+      
+      if (!file) {
+        alert('Please select a PDF file');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        document.getElementById('result').innerHTML = '<p>Parsing...</p>';
+        
+        const response = await fetch('/api/parse', {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+          document.getElementById('stats').style.display = 'block';
+          document.getElementById('stats').innerHTML = `
+            <strong>File:</strong> ${data.fileName}<br>
+            <strong>Size:</strong> ${data.fileSize} bytes<br>
+            <strong>Characters:</strong> ${data.characterCount.toLocaleString()}<br>
+            <strong>Lines:</strong> ${data.lineCount.toLocaleString()}<br>
+            <strong>Chunks:</strong> ${data.chunkCount}
+          `;
+          
+          const chunksHtml = data.chunks.map((chunk, i) => `
+            <div style="border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 5px;">
+              <h4 style="margin-top: 0; color: #1976d2;">Chunk ${i + 1}</h4>
+              <pre style="white-space: pre-wrap; word-wrap: break-word; background: #fff; padding: 10px; margin: 0;">${chunk}</pre>
+            </div>
+          `).join('');
+          
+          document.getElementById('result').innerHTML = `
+            <h3>Parsed Text:</h3>
+            <pre>${data.text}</pre>
+            
+            <h3 style="margin-top: 40px;">Contract Chunks (${data.chunkCount}):</h3>
+            ${chunksHtml}
+          `;
+        } else {
+          document.getElementById('result').innerHTML = `<p style="color:red;">Error: ${data.error}</p>`;
+        }
+      } catch (error) {
+        document.getElementById('result').innerHTML = `<p style="color:red;">Error: ${error.message}</p>`;
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,68 +1,24 @@
-/**
- * Stage 2 — Clause Chunking
- *
- * Splits a contract into logical clauses using:
- * - Numbered/lettered clause headings (e.g. "1.", "2.1", "A.", "(a)")
- * - Paragraph boundaries (double newlines)
- * - Never cuts mid-sentence
- */
+export function chunkContract(text: string) {
+  const CLAUSE_REGEX =
+    /(?:^|\n)(SECTION\s+\d+|CLAUSE\s+\d+|\d{1,2}\.\s+[A-Z][^\n]*)/g
 
-const MIN_CHUNK_LENGTH = 60
-const MAX_CHUNKS = 80
+  const matches = [...text.matchAll(CLAUSE_REGEX)]
 
-// Matches common clause/section heading patterns at the start of a line:
-// "1.", "1.1", "2.3.4", "A.", "(a)", "(i)", "Section 1", "Clause 2", "Article III"
-const CLAUSE_HEADING = /^(?:(?:Section|Clause|Article|Schedule|Exhibit|Annex)\s+[\w.]+|[\dA-Z]+(?:\.\d+)*\.|[A-Z]\.|[([)\d][a-z][)\d])\b/i
-
-function splitIntoParagraphs(text: string): string[] {
-  // Normalize line endings, then split on blank lines
-  return text
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    .split(/\n{2,}/)
-    .map((p) => p.trim())
-    .filter((p) => p.length > 0)
-}
-
-function endsWithCompleteSentence(text: string): boolean {
-  // A paragraph ending with . ! ? is a complete sentence boundary
-  return /[.!?]["')\]]*\s*$/.test(text)
-}
-
-export function chunkContract(text: string): string[] {
-  const paragraphs = splitIntoParagraphs(text)
   const chunks: string[] = []
-  let current = ""
 
-  for (const para of paragraphs) {
-    const firstLine = para.split("\n")[0]
-    const startsNewClause = CLAUSE_HEADING.test(firstLine)
+  for (let i = 0; i < matches.length; i++) {
+    const start = matches[i].index!
+    const end =
+      i + 1 < matches.length
+        ? matches[i + 1].index!
+        : text.length
 
-    if (startsNewClause && current.length > 0) {
-      // Flush the accumulated clause when a new numbered clause begins
-      if (current.length >= MIN_CHUNK_LENGTH) {
-        chunks.push(current.trim())
-      }
-      current = para
-    } else if (current.length === 0) {
-      current = para
-    } else {
-      // Append paragraph to current clause
-      // But if current already ends a sentence AND next para also starts a clause-like heading,
-      // flush first to avoid merging unrelated clauses
-      if (endsWithCompleteSentence(current) && current.length >= MIN_CHUNK_LENGTH && startsNewClause) {
-        chunks.push(current.trim())
-        current = para
-      } else {
-        current = current + "\n\n" + para
-      }
+    const chunk = text.slice(start, end).trim()
+
+    if (chunk.length > 200) {
+      chunks.push(chunk)
     }
   }
 
-  // Flush remaining
-  if (current.trim().length >= MIN_CHUNK_LENGTH) {
-    chunks.push(current.trim())
-  }
-
-  return chunks.slice(0, MAX_CHUNKS)
+  return chunks
 }
