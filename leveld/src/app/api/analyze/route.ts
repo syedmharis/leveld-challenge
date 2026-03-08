@@ -49,7 +49,14 @@ export async function POST(req: Request) {
         send({ type: "done", result })
       } catch (err) {
         console.error("Analyze error:", err)
-        send({ type: "error", message: "Failed to analyze contract." })
+        const raw = err instanceof Error ? err.message : ""
+        let message = "Failed to analyze contract. Please try again."
+        if (raw.includes("429") || raw.includes("RESOURCE_EXHAUSTED") || raw.includes("quota")) {
+          message = "AI quota exceeded. You've hit the free tier limit — wait a minute and try again, or check your Gemini API billing."
+        } else if (raw.includes("API_KEY") || raw.includes("401") || raw.includes("403")) {
+          message = "Invalid or missing Gemini API key. Check your .env.local file."
+        }
+        send({ type: "error", message })
       } finally {
         controller.close()
       }

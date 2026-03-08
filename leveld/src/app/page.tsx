@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { UploadCloud, FileText, X } from "lucide-react"
+import { UploadCloud, FileText, X, AlertCircle } from "lucide-react"
 import { AnalysisLoader } from "@/components/analysis-loader"
 import { useAnalysisStore } from "@/lib/store"
 
@@ -75,22 +75,23 @@ export default function Home() {
           const raw = line.slice(6).trim()
           if (!raw) continue
 
+          let event: { type: string; stage?: number; result?: unknown; message?: string }
           try {
-            const event = JSON.parse(raw)
+            event = JSON.parse(raw)
+          } catch {
+            continue // skip genuinely malformed JSON lines
+          }
 
-            if (event.type === "stage") {
-              setCurrentStage(event.stage)
-            } else if (event.type === "done") {
-              setCurrentStage(7) // "complete" step
-              await new Promise((r) => setTimeout(r, 800)) // brief pause to show completion
-              setAnalysis(event.result)
-              router.push("/dashboard")
-              return
-            } else if (event.type === "error") {
-              throw new Error(event.message)
-            }
-          } catch (parseErr) {
-            // skip malformed events
+          if (event.type === "stage") {
+            setCurrentStage(event.stage ?? currentStage)
+          } else if (event.type === "done") {
+            setCurrentStage(7)
+            await new Promise((r) => setTimeout(r, 800))
+            setAnalysis(event.result as Parameters<typeof setAnalysis>[0])
+            router.push("/dashboard")
+            return
+          } else if (event.type === "error") {
+            throw new Error(event.message ?? "Analysis failed.")
           }
         }
       }
@@ -113,8 +114,23 @@ export default function Home() {
 
         <Card>
           {loading ? (
-            <CardContent className="py-6">
+            <CardContent className="py-6 space-y-4">
               <AnalysisLoader currentStage={currentStage} />
+              {error && (
+                <div className="flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                  <AlertCircle className="size-4 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium">Analysis failed</p>
+                    <p className="mt-0.5 text-destructive/80">{error}</p>
+                    <button
+                      onClick={() => { setLoading(false); setError(""); setCurrentStage(1) }}
+                      className="mt-2 text-xs underline underline-offset-2 hover:no-underline"
+                    >
+                      Try again
+                    </button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           ) : (
             <>

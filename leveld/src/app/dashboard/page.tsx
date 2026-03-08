@@ -32,10 +32,10 @@ const TYPE_COLORS: Record<string, string> = {
   other: "bg-muted text-muted-foreground",
 }
 
-const RISK_DOT: Record<string, string> = {
-  High: "bg-red-500",
-  Medium: "bg-amber-500",
-  Low: "bg-slate-400",
+const RISK_LABEL: Record<string, { emoji: string; label: string; classes: string }> = {
+  High: { emoji: "🔴", label: "High Risk", classes: "text-red-700 bg-red-100 dark:text-red-400 dark:bg-red-900/30" },
+  Medium: { emoji: "🟡", label: "Medium Risk", classes: "text-amber-700 bg-amber-100 dark:text-amber-400 dark:bg-amber-900/30" },
+  Low: { emoji: "🟢", label: "Low Risk", classes: "text-green-700 bg-green-100 dark:text-green-400 dark:bg-green-900/30" },
 }
 
 const RISK_BADGE: Record<string, string> = {
@@ -75,30 +75,33 @@ function ClauseListItem({
         active && "bg-muted",
       )}
     >
-      <div className="flex items-start gap-2.5 min-w-0">
-        <span className={cn("size-2 shrink-0 rounded-full mt-2", RISK_DOT[clause.risk])} />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className="text-[11px] text-muted-foreground font-mono shrink-0">{clause.clauseRef}</span>
+      <div className="flex flex-col gap-1.5 min-w-0 w-full">
+        {/* Risk label pill */}
+        <div className="flex items-center justify-between gap-2">
+          <span className={cn("inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full", RISK_LABEL[clause.risk].classes)}>
+            {RISK_LABEL[clause.risk].emoji} {RISK_LABEL[clause.risk].label}
+          </span>
+          <div className="flex items-center gap-1 shrink-0">
             {clause.isAmendment && (
-              <span className="shrink-0 text-[9px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 rounded uppercase tracking-wide">
+              <span className="text-[9px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 rounded uppercase tracking-wide">
                 Amended
               </span>
             )}
             {clause.reviewerNote && (
-              <span className="shrink-0 text-[9px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 px-1.5 py-0.5 rounded uppercase tracking-wide">
+              <span className="text-[9px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 px-1.5 py-0.5 rounded uppercase tracking-wide">
                 Note
               </span>
             )}
           </div>
-          <p className="text-sm font-medium truncate mt-0.5">{clause.title}</p>
-          <span className={cn("inline-block mt-1.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full", TYPE_COLORS[clause.type])}>
+        </div>
+        {/* Title + ref */}
+        <p className="text-sm font-medium truncate leading-snug">{clause.title}</p>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-muted-foreground font-mono">{clause.clauseRef}</span>
+          <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full", TYPE_COLORS[clause.type])}>
             {clause.type}
           </span>
         </div>
-        <Badge variant="outline" className={cn("shrink-0 text-[10px] mt-0.5", RISK_BADGE[clause.risk])}>
-          {clause.risk}
-        </Badge>
       </div>
     </button>
   )
