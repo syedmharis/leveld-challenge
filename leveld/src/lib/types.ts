@@ -1,15 +1,4 @@
-export interface ClauseAnalysis {
-  id: string
-  title: string
-  clauseRef: string
-  type: "liability" | "payment" | "IP" | "termination" | "confidentiality" | "change control" | "other"
-  risk: "High" | "Medium" | "Low"
-  text: string
-  explanation: string
-  recommendation: string
-  reviewerNote?: string
-  isAmendment?: boolean
-}
+// ─── Contract Types ────────────────────────────────────────────────────────────
 
 export interface ContractMeta {
   title: string
@@ -22,21 +11,44 @@ export interface ContractMeta {
   currency: string
 }
 
-export interface ContractAnalysis {
-  meta: ContractMeta
-  summary: {
-    overallRisk: "High" | "Medium" | "Low"
-    topIssues: string[]
-    narrative: string
-    highCount: number
-    mediumCount: number
-    lowCount: number
-  }
-  clauses: ClauseAnalysis[]
+export type ClauseType =
+  | "liability"
+  | "payment"
+  | "IP"
+  | "termination"
+  | "confidentiality"
+  | "change_control"
+  | "warranty"
+  | "service_delivery"
+  | "data_protection"
+  | "other"
+
+export type RiskLevel = "High" | "Medium" | "Low"
+
+export interface ClauseAnalysis {
+  id: string
+  title: string
+  clauseRef: string
+  type: ClauseType
+  risk: RiskLevel
+  text: string
+  explanation: string
+  recommendation: string
+  reviewerNote?: string
+  isAmendment: boolean
 }
 
-// SSE event types for streaming progress
-export type PipelineEvent =
-  | { type: "stage"; stage: number; label: string }
-  | { type: "done"; result: ContractAnalysis }
-  | { type: "error"; message: string }
+export interface ContractSummary {
+  overallRisk: RiskLevel
+  topIssues: string[]
+  narrative: string
+  highCount: number
+  mediumCount: number
+  lowCount: number
+}
+
+export interface ContractAnalysis {
+  meta: ContractMeta
+  summary: ContractSummary
+  clauses: ClauseAnalysis[]
+}

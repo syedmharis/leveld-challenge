@@ -27,15 +27,17 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} ${geistMono.variable} antialiased`}>
+      <body className={`${inter.variable} ${geistMono.variable} antialiased h-screen overflow-hidden`}>
         <TooltipProvider>
-          <SidebarProvider>
+          <SidebarProvider className="h-full">
             <AppSidebar />
-            <main className="flex flex-1 flex-col">
-              <div className="flex items-center px-4 py-2 border-b">
+            <main className="flex flex-1 flex-col min-h-0 overflow-hidden">
+              <div className="flex items-center px-4 py-2 border-b shrink-0">
                 <SidebarTrigger />
               </div>
-              {children}
+              <div className="flex-1 min-h-0 overflow-hidden">
+                {children}
+              </div>
             </main>
           </SidebarProvider>
         </TooltipProvider>

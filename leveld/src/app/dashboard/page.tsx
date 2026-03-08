@@ -3,60 +3,34 @@
 import { useEffect, useState } from "react"
 import { useAnalysisStore } from "@/lib/store"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import type { ClauseAnalysis } from "@/lib/types"
 import {
   ArrowLeft,
-  ShieldAlert,
-  ShieldCheck,
-  ShieldQuestion,
   AlertTriangle,
-  Download,
   Building2,
   Hash,
-  Calendar,
-  DollarSign,
+  FileText,
+  ChevronRight,
+  Search,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-// ─── Color maps ───────────────────────────────────────────────────────────────
+// ─── Risk accent — only color used ────────────────────────────────────────────
+// High → red, Medium → amber (just dot/label), Low → nothing special
 
-const TYPE_COLORS: Record<string, string> = {
-  liability: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-  payment: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-  IP: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
-  termination: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
-  confidentiality: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
-  "change control": "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400",
-  other: "bg-muted text-muted-foreground",
+const RISK_DOT: Record<string, string> = {
+  High:   "bg-destructive",
+  Medium: "bg-amber-400",
+  Low:    "bg-muted-foreground/40",
 }
 
-const RISK_LABEL: Record<string, { emoji: string; label: string; classes: string }> = {
-  High: { emoji: "🔴", label: "High Risk", classes: "text-red-700 bg-red-100 dark:text-red-400 dark:bg-red-900/30" },
-  Medium: { emoji: "🟡", label: "Medium Risk", classes: "text-amber-700 bg-amber-100 dark:text-amber-400 dark:bg-amber-900/30" },
-  Low: { emoji: "🟢", label: "Low Risk", classes: "text-green-700 bg-green-100 dark:text-green-400 dark:bg-green-900/30" },
+const RISK_TEXT: Record<string, string> = {
+  High:   "text-destructive",
+  Medium: "text-amber-600 dark:text-amber-400",
+  Low:    "text-muted-foreground",
 }
 
-const RISK_BADGE: Record<string, string> = {
-  High: "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800",
-  Medium: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800",
-  Low: "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700",
-}
-
-const OVERALL_RISK_STYLES: Record<string, { bg: string; text: string; border: string }> = {
-  High: { bg: "bg-red-50 dark:bg-red-950/30", text: "text-red-700 dark:text-red-400", border: "border-red-200 dark:border-red-800" },
-  Medium: { bg: "bg-amber-50 dark:bg-amber-950/30", text: "text-amber-700 dark:text-amber-400", border: "border-amber-200 dark:border-amber-800" },
-  Low: { bg: "bg-green-50 dark:bg-green-950/30", text: "text-green-700 dark:text-green-400", border: "border-green-200 dark:border-green-800" },
-}
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function RiskIcon({ risk }: { risk: string }) {
-  if (risk === "High") return <ShieldAlert className="size-5 text-red-500" />
-  if (risk === "Low") return <ShieldCheck className="size-5 text-green-500" />
-  return <ShieldQuestion className="size-5 text-amber-500" />
-}
+// ─── Clause list item ─────────────────────────────────────────────────────────
 
 function ClauseListItem({
   clause,
@@ -71,103 +45,125 @@ function ClauseListItem({
     <button
       onClick={onClick}
       className={cn(
-        "w-full text-left px-4 py-3 border-b border-border/50 transition-colors hover:bg-muted/50 focus:outline-none",
-        active && "bg-muted",
+        "group w-full text-left px-4 py-3 border-b border-border transition-colors focus:outline-none",
+        active ? "bg-accent" : "hover:bg-muted/50",
       )}
     >
-      <div className="flex flex-col gap-1.5 min-w-0 w-full">
-        {/* Risk label pill */}
-        <div className="flex items-center justify-between gap-2">
-          <span className={cn("inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full", RISK_LABEL[clause.risk].classes)}>
-            {RISK_LABEL[clause.risk].emoji} {RISK_LABEL[clause.risk].label}
-          </span>
-          <div className="flex items-center gap-1 shrink-0">
-            {clause.isAmendment && (
-              <span className="text-[9px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 rounded uppercase tracking-wide">
-                Amended
-              </span>
-            )}
-            {clause.reviewerNote && (
-              <span className="text-[9px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 px-1.5 py-0.5 rounded uppercase tracking-wide">
-                Note
-              </span>
-            )}
+      <div className="flex items-start gap-3">
+        {/* Risk dot */}
+        <span className={cn("mt-1.5 size-1.5 rounded-full shrink-0", RISK_DOT[clause.risk])} />
+
+        <div className="flex-1 min-w-0">
+          {/* Ref + flags */}
+          <div className="flex items-center justify-between gap-2 mb-0.5">
+            <span className="text-[11px] font-mono text-muted-foreground">{clause.clauseRef}</span>
+            <div className="flex items-center gap-1 shrink-0">
+              {clause.isAmendment && (
+                <span className="text-[9px] font-semibold tracking-widest uppercase text-muted-foreground border border-border rounded px-1 py-px">
+                  AMD
+                </span>
+              )}
+              {clause.reviewerNote && (
+                <span className="text-[9px] font-semibold tracking-widest uppercase text-muted-foreground border border-border rounded px-1 py-px">
+                  NOTE
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Title */}
+          <p className="text-[13px] font-medium leading-snug truncate text-foreground mb-1">
+            {clause.title}
+          </p>
+
+          {/* Type + risk label */}
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] text-muted-foreground capitalize">
+              {clause.type.replace(/_/g, " ")}
+            </span>
+            <span className={cn("text-[11px] font-semibold", RISK_TEXT[clause.risk])}>
+              {clause.risk}
+            </span>
           </div>
         </div>
-        {/* Title + ref */}
-        <p className="text-sm font-medium truncate leading-snug">{clause.title}</p>
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] text-muted-foreground font-mono">{clause.clauseRef}</span>
-          <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full", TYPE_COLORS[clause.type])}>
-            {clause.type}
-          </span>
-        </div>
+
+        <ChevronRight className={cn(
+          "size-3.5 mt-1 shrink-0 transition-opacity text-muted-foreground",
+          active ? "opacity-50" : "opacity-0 group-hover:opacity-30",
+        )} />
       </div>
     </button>
   )
 }
 
+// ─── Clause detail panel ──────────────────────────────────────────────────────
+
 function ClauseDetail({ clause }: { clause: ClauseAnalysis }) {
   return (
     <div className="flex flex-col h-full overflow-y-auto">
-      {/* Header */}
-      <div className="px-6 py-5 border-b border-border sticky top-0 bg-background z-10">
-        <div className="flex items-start gap-3">
+
+      {/* Sticky header */}
+      <div className="sticky top-0 z-10 bg-background border-b border-border px-6 py-4">
+        <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs font-mono text-muted-foreground">{clause.clauseRef}</span>
-              <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full", TYPE_COLORS[clause.type])}>
-                {clause.type}
-              </span>
+              <span className="text-[11px] font-mono text-muted-foreground">{clause.clauseRef}</span>
+              <span className="text-[11px] text-muted-foreground">·</span>
+              <span className="text-[11px] text-muted-foreground capitalize">{clause.type.replace(/_/g, " ")}</span>
             </div>
-            <h2 className="text-base font-semibold leading-snug">{clause.title}</h2>
+            <h2 className="text-base font-semibold text-foreground leading-snug">{clause.title}</h2>
           </div>
-          <Badge variant="outline" className={cn("shrink-0", RISK_BADGE[clause.risk])}>
+          <span className={cn("shrink-0 text-[11px] font-bold uppercase tracking-wide mt-0.5", RISK_TEXT[clause.risk])}>
             {clause.risk} Risk
-          </Badge>
+          </span>
         </div>
 
+        {/* Banners */}
         {clause.isAmendment && (
-          <div className="mt-3 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
-            <AlertTriangle className="size-3.5 shrink-0 mt-0.5" />
-            <span>This clause contains an inline amendment. Formal change control may not have been followed.</span>
+          <div className="mt-3 flex items-start gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-[12px] text-foreground/80">
+            <AlertTriangle className="size-3.5 shrink-0 mt-px text-amber-500" />
+            <span>Contains an inline amendment — formal change control may not have been followed.</span>
           </div>
         )}
         {clause.reviewerNote && (
-          <div className="mt-2 flex items-start gap-2 rounded-md border border-blue-300 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30 px-3 py-2 text-xs text-blue-700 dark:text-blue-400">
-            <AlertTriangle className="size-3.5 shrink-0 mt-0.5" />
-            <span><strong>Reviewer note:</strong> {clause.reviewerNote}</span>
+          <div className="mt-2 flex items-start gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-[12px] text-foreground/80">
+            <AlertTriangle className="size-3.5 shrink-0 mt-px text-muted-foreground" />
+            <div><span className="font-semibold">Note: </span>{clause.reviewerNote}</div>
           </div>
         )}
       </div>
 
       {/* Body */}
-      <div className="px-6 py-5 space-y-5 flex-1">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">Original Text</p>
-          <blockquote className="rounded-md border-l-4 border-border bg-muted/40 px-4 py-3 text-sm leading-relaxed text-foreground/80 italic">
-            {clause.text.length > 600 ? clause.text.slice(0, 600) + "…" : clause.text}
-          </blockquote>
-        </div>
+      <div className="px-6 py-6 space-y-6">
 
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">Why This Is Risky</p>
-          <p className="text-sm leading-relaxed text-foreground">{clause.explanation}</p>
-        </div>
+        {/* Original text */}
+        <section>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">Original Text</p>
+          <div className="rounded-md border border-border bg-muted/30 px-4 py-3 text-[12px] font-mono leading-relaxed text-foreground/70 whitespace-pre-wrap">
+            {clause.text.length > 900 ? clause.text.slice(0, 900) + "…" : clause.text}
+          </div>
+        </section>
 
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">Recommendation</p>
+        {/* Analysis */}
+        {clause.explanation && clause.explanation !== "No immediate action required." && (
+          <section>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">Analysis</p>
+            <p className="text-[13px] leading-relaxed text-foreground">{clause.explanation}</p>
+          </section>
+        )}
+
+        {/* Recommendation */}
+        <section>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">Recommendation</p>
           <div className={cn(
-            "rounded-md border px-4 py-3 text-sm leading-relaxed",
+            "rounded-md border px-4 py-3 text-[13px] leading-relaxed",
             clause.risk === "High"
-              ? "border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/30 dark:text-red-300"
-              : clause.risk === "Medium"
-              ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300"
-              : "border-border bg-muted/30 text-foreground",
+              ? "border-destructive/30 bg-destructive/5 text-foreground"
+              : "border-border bg-muted/20 text-foreground",
           )}>
             {clause.recommendation}
           </div>
-        </div>
+        </section>
       </div>
     </div>
   )
@@ -180,19 +176,25 @@ export default function Dashboard() {
   const analysis = useAnalysisStore((s) => s.analysis)
   const [selected, setSelected] = useState<ClauseAnalysis | null>(null)
   const [mobileDetail, setMobileDetail] = useState(false)
+  const [search, setSearch] = useState("")
+  const [riskFilter, setRiskFilter] = useState<"All" | "High" | "Medium" | "Low">("High")
 
   useEffect(() => {
-    if (!analysis) {
-      router.push("/")
-    } else {
-      setSelected(analysis.clauses[0] ?? null)
-    }
+    if (!analysis) router.push("/")
   }, [analysis, router])
+
+  const effectiveSelected = selected ?? analysis?.clauses.find((c) => c.risk === "High") ?? analysis?.clauses[0] ?? null
 
   if (!analysis) return null
 
   const { meta, summary, clauses } = analysis
-  const riskStyle = OVERALL_RISK_STYLES[summary.overallRisk] ?? OVERALL_RISK_STYLES.Medium
+
+  const filtered = clauses.filter((c) => {
+    const matchesRisk = riskFilter === "All" || c.risk === riskFilter
+    const q = search.toLowerCase()
+    const matchesSearch = !q || c.title.toLowerCase().includes(q) || c.clauseRef.toLowerCase().includes(q) || c.type.toLowerCase().includes(q)
+    return matchesRisk && matchesSearch
+  })
 
   function selectClause(clause: ClauseAnalysis) {
     setSelected(clause)
@@ -200,97 +202,176 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-background overflow-hidden">
-      {/* ── Contract Header ── */}
-      <div className="shrink-0 border-b border-border px-4 py-4">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div className="flex items-start gap-2">
-            <Button variant="ghost" size="icon" className="shrink-0 mt-0.5 size-8" onClick={() => router.push("/")}>
-              <ArrowLeft className="size-4" />
-            </Button>
-            <div>
-              <h1 className="text-base font-semibold leading-tight">{meta.title}</h1>
-              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                {meta.supplier !== "Unknown" && (
-                  <span className="flex items-center gap-1"><Building2 className="size-3" />{meta.supplier}</span>
-                )}
-                {meta.reference !== "N/A" && (
-                  <span className="flex items-center gap-1"><Hash className="size-3" />{meta.reference}</span>
-                )}
-                {meta.version !== "N/A" && (
-                  <span className="flex items-center gap-1"><Calendar className="size-3" />{meta.version}</span>
-                )}
-                {meta.estimatedValue && (
-                  <span className="flex items-center gap-1 font-medium text-foreground">
-                    <DollarSign className="size-3" />{meta.currency} {meta.estimatedValue.toLocaleString()}
-                  </span>
-                )}
+    <div className="flex flex-col h-full bg-background overflow-hidden min-h-0">
+
+      {/* ── Header ── */}
+      <div className="shrink-0 border-b border-border bg-background">
+
+        {/* Top bar: nav + contract identity + risk verdict */}
+        <div className="flex items-center justify-between gap-4 px-5 py-3 border-b border-border/60">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={() => router.push("/")}
+              className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
+            >
+              <ArrowLeft className="size-3.5" />
+            </button>
+            <div className="w-px h-4 bg-border shrink-0" />
+            <FileText className="size-3.5 text-muted-foreground shrink-0" />
+            <h1 className="text-sm font-semibold text-foreground truncate">{meta.title}</h1>
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground shrink-0">
+              {meta.supplier && meta.supplier !== "Unknown" && (
+                <span className="flex items-center gap-1"><Building2 className="size-3" />{meta.supplier}</span>
+              )}
+              {meta.reference && meta.reference !== "N/A" && (
+                <span className="flex items-center gap-1 font-mono"><Hash className="size-3" />{meta.reference}</span>
+              )}
+              {meta.version && meta.version !== "N/A" && (
+                <span className="text-muted-foreground/50">{meta.version}</span>
+              )}
+            </div>
+          </div>
+
+          {/* Risk verdict pill */}
+          <div className={cn(
+            "flex items-center gap-2 shrink-0 rounded-md border px-3 py-1.5",
+            summary.overallRisk === "High"
+              ? "border-destructive/30 bg-destructive/5"
+              : summary.overallRisk === "Medium"
+              ? "border-amber-300/50 bg-amber-50/50 dark:border-amber-700/30 dark:bg-amber-950/20"
+              : "border-border bg-muted/30",
+          )}>
+            <span className={cn(
+              "size-2 rounded-full shrink-0",
+              summary.overallRisk === "High" ? "bg-destructive" : summary.overallRisk === "Medium" ? "bg-amber-400" : "bg-muted-foreground/40",
+            )} />
+            <span className={cn(
+              "text-xs font-bold uppercase tracking-widest",
+              summary.overallRisk === "High" ? "text-destructive" : summary.overallRisk === "Medium" ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground",
+            )}>
+              {summary.overallRisk} Risk
+            </span>
+          </div>
+        </div>
+
+        {/* Summary body: counts + narrative + issues */}
+        <div className="px-5 py-4 flex gap-8">
+
+          {/* Clause counts */}
+          <div className="shrink-0 flex flex-col gap-3 pr-8 border-r border-border">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Risk Breakdown</p>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2.5">
+                <span className="size-2 rounded-full bg-destructive shrink-0" />
+                <span className="text-sm font-semibold text-foreground w-5 tabular-nums">{summary.highCount}</span>
+                <span className="text-xs text-muted-foreground">High</span>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <span className="size-2 rounded-full bg-amber-400 shrink-0" />
+                <span className="text-sm font-semibold text-foreground w-5 tabular-nums">{summary.mediumCount}</span>
+                <span className="text-xs text-muted-foreground">Medium</span>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <span className="size-2 rounded-full bg-muted-foreground/30 shrink-0" />
+                <span className="text-sm font-semibold text-foreground w-5 tabular-nums">{summary.lowCount}</span>
+                <span className="text-xs text-muted-foreground">Low</span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <div className={cn("flex items-center gap-2 rounded-lg border px-3 py-1.5", riskStyle.bg, riskStyle.border)}>
-              <RiskIcon risk={summary.overallRisk} />
-              <div>
-                <p className={cn("text-xs font-semibold uppercase tracking-wide leading-none", riskStyle.text)}>
-                  {summary.overallRisk} Risk
-                </p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">{clauses.length} clauses</p>
+          {/* Narrative + top issues */}
+          <div className="flex-1 min-w-0 flex gap-8">
+
+            {/* Narrative */}
+            {summary.narrative && (
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">Overview</p>
+                <p className="text-[13px] text-foreground/80 leading-relaxed">{summary.narrative}</p>
               </div>
-            </div>
-            <Button variant="outline" size="sm" disabled className="text-xs gap-1 h-8">
-              <Download className="size-3.5" />
-              Export
-            </Button>
+            )}
+
+            {/* Top issues */}
+            {summary.topIssues.length > 0 && (
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">Key Issues</p>
+                <div className="space-y-2">
+                  {summary.topIssues.map((issue, i) => (
+                    <div key={i} className="flex items-start gap-2.5">
+                      <span className="mt-1.5 size-1.5 rounded-full bg-destructive shrink-0" />
+                      <p className="text-[13px] text-foreground/80 leading-relaxed">{issue}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
-
-        {/* Stats + narrative */}
-        <div className="mt-2.5 flex flex-wrap items-start gap-x-4 gap-y-1.5">
-          <div className="flex items-center gap-3 text-xs font-medium">
-            <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-red-500" />{summary.highCount} High</span>
-            <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-amber-500" />{summary.mediumCount} Medium</span>
-            <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-slate-400" />{summary.lowCount} Low</span>
-          </div>
-          {summary.narrative && (
-            <p className="text-xs text-muted-foreground leading-relaxed max-w-2xl">{summary.narrative}</p>
-          )}
-        </div>
-
-        {/* Top issues */}
-        {summary.topIssues.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
-            {summary.topIssues.map((issue, i) => (
-              <p key={i} className="text-xs text-foreground/70 flex items-start gap-1.5">
-                <span className="text-red-500 font-bold shrink-0">·</span>{issue}
-              </p>
-            ))}
-          </div>
-        )}
       </div>
 
-      {/* ── Inbox layout ── */}
+      {/* ── Split layout ── */}
       <div className="flex flex-1 min-h-0">
-        {/* Clause list */}
+
+        {/* Left: clause list */}
         <div className={cn(
-          "w-full md:w-72 lg:w-80 shrink-0 border-r border-border overflow-y-auto",
-          mobileDetail ? "hidden md:flex md:flex-col" : "flex flex-col",
+          "w-full md:w-72 lg:w-80 shrink-0 border-r border-border flex flex-col min-h-0 overflow-hidden",
+          mobileDetail ? "hidden md:flex" : "flex",
         )}>
-          <div className="px-4 py-2 border-b border-border/50 bg-muted/20 sticky top-0 z-10">
-            <p className="text-xs font-medium text-muted-foreground">{clauses.length} clauses analyzed</p>
+
+          {/* Toolbar */}
+          <div className="shrink-0 px-3 py-2.5 border-b border-border space-y-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search clauses…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 text-[12px] bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
+              />
+            </div>
+
+            <div className="flex gap-1">
+              {(["All", "High", "Medium", "Low"] as const).map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setRiskFilter(r)}
+                  className={cn(
+                    "flex-1 text-[10px] font-medium py-1 rounded transition-colors",
+                    riskFilter === r
+                      ? "bg-foreground text-background"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted",
+                  )}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+
+            <p className="text-[10px] text-muted-foreground">
+              {filtered.length} of {clauses.length} clauses
+            </p>
           </div>
-          {clauses.map((clause) => (
-            <ClauseListItem
-              key={clause.id}
-              clause={clause}
-              active={selected?.id === clause.id}
-              onClick={() => selectClause(clause)}
-            />
-          ))}
+
+          {/* Scrollable clause list */}
+          <div className="flex-1 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="px-4 py-8 text-center text-[12px] text-muted-foreground">
+                No clauses match your filter.
+              </p>
+            ) : (
+              filtered.map((clause) => (
+                <ClauseListItem
+                  key={clause.id}
+                  clause={clause}
+                  active={effectiveSelected?.id === clause.id}
+                  onClick={() => selectClause(clause)}
+                />
+              ))
+            )}
+          </div>
         </div>
 
-        {/* Detail panel */}
+        {/* Right: detail */}
         <div className={cn(
           "flex-1 min-w-0 overflow-hidden",
           mobileDetail ? "flex flex-col" : "hidden md:flex md:flex-col",
@@ -298,14 +379,14 @@ export default function Dashboard() {
           <div className="md:hidden px-4 py-2 border-b border-border shrink-0">
             <button
               onClick={() => setMobileDetail(false)}
-              className="text-xs text-muted-foreground flex items-center gap-1 hover:text-foreground"
+              className="text-[12px] text-muted-foreground flex items-center gap-1 hover:text-foreground"
             >
               <ArrowLeft className="size-3" /> Back to clauses
             </button>
           </div>
 
-          {selected ? (
-            <ClauseDetail clause={selected} />
+          {effectiveSelected ? (
+            <ClauseDetail clause={effectiveSelected} />
           ) : (
             <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
               Select a clause to view details
