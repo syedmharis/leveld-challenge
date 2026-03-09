@@ -51,10 +51,10 @@ export async function POST(req: Request) {
         console.error("Analyze error:", err)
         const raw = err instanceof Error ? err.message : ""
         let message = "Failed to analyze contract. Please try again."
-        if (raw.includes("429") || raw.includes("RESOURCE_EXHAUSTED") || raw.includes("quota")) {
-          message = "AI quota exceeded. You've hit the free tier limit — wait a minute and try again, or check your Gemini API billing."
+        if (raw.includes("429") || raw.includes("RESOURCE_EXHAUSTED") || raw.includes("quota") || raw.includes("rate_limit")) {
+          message = "AI quota exceeded — wait a moment and try again, or check your Groq API billing."
         } else if (raw.includes("API_KEY") || raw.includes("401") || raw.includes("403")) {
-          message = "Invalid or missing Gemini API key. Check your .env.local file."
+          message = "Invalid or missing Groq API key. Check GROQ_API_KEY in your .env.local file."
         }
         send({ type: "error", message })
       } finally {

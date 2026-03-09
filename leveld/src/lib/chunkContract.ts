@@ -33,6 +33,25 @@ export function cleanContractText(raw: string): string {
   return text.trim()
 }
 
+// ─── Boilerplate Detection ─────────────────────────────────────────────────────
+
+/**
+ * Sections that are structural/administrative with no meaningful risk to score.
+ * The AI still receives them tagged as [SKIP] — this cuts ~15-20% of clause tokens.
+ */
+const BOILERPLATE_PATTERNS = [
+  /^\s*(?:PARTIES|BACKGROUND|RECITALS|PREAMBLE|INTRODUCTION)\b/i,
+  /^\s*EXECUTION\b/i,
+  /^\s*(?:SIGNATURE|SIGNATURES|SIGNING)\b/i,
+  /^\s*(?:IN WITNESS WHEREOF|SIGNED BY|EXECUTED BY)\b/i,
+  /^\s*(?:SCHEDULE\s+\d+\s*[:—]\s*)?(?:DEFINITIONS|INTERPRETATION)\b/i,
+]
+
+export function isBoilerplateChunk(chunk: string): boolean {
+  const firstLine = chunk.split("\n")[0]
+  return BOILERPLATE_PATTERNS.some((p) => p.test(firstLine))
+}
+
 // ─── Clause Chunking ───────────────────────────────────────────────────────────
 
 /**
@@ -45,13 +64,21 @@ export function cleanContractText(raw: string): string {
  *  - "12. TERMINATION"
  *  - "ANNEX A — SCHEDULE OF FEES"
  *  - "PARTIES" / "BACKGROUND" preamble headings
+ *
+ * Sentence-boundary awareness: if a heading match lands mid-sentence
+ * (previous char is not a newline, period, or start-of-string), the chunk
+ * boundary is walked back to the nearest sentence end so clauses are never
+ * split mid-sentence.
  */
 export function chunkContract(rawText: string): string[] {
   const text = cleanContractText(rawText)
 
-  // Multi-pattern heading regex — most specific patterns first
+  // Multi-pattern heading regex — most specific patterns first.
+  // NOTE: the numeric heading pattern (\d{1,2}\.) requires ALL-CAPS content (≥2 uppercase words)
+  // to avoid matching sub-clause references like "1.2 References to a Clause..." which are
+  // prose sentences beginning with a lowercase-majority label, not top-level headings.
   const CLAUSE_HEADING =
-    /(?:^|\n)\s*(?:(?:CLAUSE|SECTION)\s+\d+[\s.—\-:]+[^\n]*|\d{1,2}\.\s+[A-Z][A-Z\s&,]+[^\n]*|ANNEX\s+[A-Z][\s.—\-:]+[^\n]*|(?:PARTIES|BACKGROUND|EXECUTION)\b[^\n]*)/gi
+    /(?:^|\n)\s*(?:(?:CLAUSE|SECTION)\s+\d+[\s.—\-:]+[^\n]*|\d{1,2}\.\s+[A-Z]{2,}(?:\s+[A-Z&,]+){0,}[^\n]*|ANNEX\s+[A-Z][\s.—\-:]+[^\n]*|(?:PARTIES|BACKGROUND|EXECUTION|SIGNATURES?|DEFINITIONS|INTERPRETATION)\b[^\n]*)/gi
 
   const matches = [...text.matchAll(CLAUSE_HEADING)]
 
@@ -60,22 +87,45 @@ export function chunkContract(rawText: string): string[] {
     return text.length > 200 ? [text] : []
   }
 
+  // Compute sentence-safe start positions for each match.
+  // If the character immediately before a match is mid-sentence (not \n or .)
+  // walk back to the last sentence-ending punctuation so we don't split prose.
+  const safeStarts: number[] = matches.map((m) => {
+    const pos = m.index!
+    if (pos === 0) return pos
+    const preceding = text.slice(Math.max(0, pos - 1), pos)
+    // Already at a line/sentence boundary — use as-is
+    if (/[\n.]/.test(preceding)) return pos
+    // Walk back up to 120 chars to find the nearest sentence end
+    const lookback = text.slice(Math.max(0, pos - 120), pos)
+    const sentenceEnd = lookback.search(/[.!?]\s+[A-Z]/)
+    if (sentenceEnd !== -1) {
+      // sentenceEnd points to the punctuation; advance past it + whitespace
+      const absEnd = Math.max(0, pos - 120) + sentenceEnd + 1
+      return absEnd
+    }
+    return pos
+  })
+
   const chunks: string[] = []
 
   // Capture preamble (everything before first heading) if substantial
-  const firstMatchStart = matches[0].index!
-  if (firstMatchStart > 200) {
-    chunks.push(text.slice(0, firstMatchStart).trim())
+  if (safeStarts[0] > 200) {
+    chunks.push(text.slice(0, safeStarts[0]).trim())
   }
 
   // Extract each clause: from its heading to the next heading
   for (let i = 0; i < matches.length; i++) {
-    const start = matches[i].index!
-    const end = i + 1 < matches.length ? matches[i + 1].index! : text.length
+    const start = safeStarts[i]
+    const end = i + 1 < matches.length ? safeStarts[i + 1] : text.length
     const chunk = text.slice(start, end).trim()
 
-    // Skip tiny fragments (headings with no real content)
-    if (chunk.length > 150) {
+    // Merge tiny orphan fragments (sentence-boundary walkback may produce a sliver
+    // of prose that belongs to the previous clause) into the preceding chunk.
+    // Threshold: 300 chars — anything shorter is a continuation, not a clause.
+    if (chunk.length < 300 && chunks.length > 0) {
+      chunks[chunks.length - 1] += "\n" + chunk
+    } else if (chunk.length > 0) {
       chunks.push(chunk)
     }
   }

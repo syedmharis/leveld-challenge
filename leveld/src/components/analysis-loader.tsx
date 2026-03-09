@@ -1,17 +1,15 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Check, Loader2, FileText, Scissors, Brain, ShieldAlert, LayoutDashboard, Sparkles, Database } from "lucide-react"
+import { Check, Loader2, FileText, Scissors, Brain, LayoutDashboard, Database } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export const PIPELINE_STEPS = [
   { stage: 1, icon: FileText, label: "Parsing contract document", detail: "Extracting text and structure from your file…" },
   { stage: 2, icon: Scissors, label: "Splitting into clauses", detail: "Intelligently chunking content to fit AI context limits…" },
   { stage: 3, icon: Database, label: "Extracting contract metadata", detail: "Identifying parties, reference numbers, contract value…" },
-  { stage: 4, icon: Brain, label: "Classifying clauses & scoring risk", detail: "Running batch classification — liability, IP, payment, termination…" },
-  { stage: 5, icon: ShieldAlert, label: "Enriching high & medium risk findings", detail: "Generating plain-English explanations and actionable recommendations…" },
-  { stage: 6, icon: LayoutDashboard, label: "Generating executive summary", detail: "Synthesising overall contract risk posture for your review…" },
-  { stage: 7, icon: Sparkles, label: "Analysis complete", detail: "Redirecting you to your risk dashboard…" },
+  { stage: 4, icon: Brain, label: "Analysing clauses & scoring risk", detail: "Classifying each clause, scoring risk, and generating plain-English explanations…" },
+  { stage: 5, icon: LayoutDashboard, label: "Generating executive summary", detail: "Synthesising overall contract risk posture for your review…" },
 ]
 
 function TypewriterText({ text }: { text: string }) {
@@ -107,7 +105,7 @@ export function AnalysisLoader({ currentStage }: { currentStage: number }) {
           />
         </div>
         <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>Analyzing with Gemini AI</span>
+          <span>Analyzing with Groq AI</span>
           <span>Step {Math.min(currentStage, PIPELINE_STEPS.length)} of {PIPELINE_STEPS.length}</span>
         </div>
       </div>

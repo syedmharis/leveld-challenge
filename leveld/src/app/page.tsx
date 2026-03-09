@@ -85,7 +85,7 @@ export default function Home() {
           if (event.type === "stage") {
             setCurrentStage(event.stage ?? currentStage)
           } else if (event.type === "done") {
-            setCurrentStage(7)
+            setCurrentStage(5)
             await new Promise((r) => setTimeout(r, 800))
             setAnalysis(event.result as Parameters<typeof setAnalysis>[0])
             router.push("/dashboard")

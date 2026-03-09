@@ -47,8 +47,31 @@ export interface ContractSummary {
   lowCount: number
 }
 
+// Raw pipeline debug data stored alongside the analysis
+export interface PipelineDebug {
+  rawText: string
+  rawChunks: string[]
+  metaOutput: ContractMeta
+  clauseOutput: Array<{
+    title: string
+    clauseRef: string
+    type: string
+    risk: string
+    explanation: string
+    recommendation: string
+    reviewerNote: string | null
+    isAmendment: boolean
+  }>
+  summaryOutput: {
+    overallRisk: string
+    topIssues: string[]
+    narrative: string
+  }
+}
+
 export interface ContractAnalysis {
   meta: ContractMeta
   summary: ContractSummary
   clauses: ClauseAnalysis[]
+  debug: PipelineDebug
 }

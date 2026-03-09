@@ -26,7 +26,7 @@ No tests are configured.
 - **React 19** / **TypeScript** (strict, `@/*` → `src/*`)
 - **Tailwind CSS v4** with CSS variables for theming (`src/app/globals.css`)
 - **shadcn/ui** (radix-nova style, lucide icons) — add components via `pnpm dlx shadcn add <component>`, goes in `src/components/ui/`
-- **@google/genai** — Gemini AI SDK (`gemini-2.5-flash-lite` model)
+- **groq-sdk** — Groq AI SDK (`moonshotai/kimi-k2-instruct-0905` for classification, `openai/gpt-oss-120b` for summary)
 - **Zustand 5** with `persist` middleware — global state, persists to localStorage
 - **pdf-parse** — PDF text extraction (server-side only)
 
@@ -40,10 +40,9 @@ Upload page (page.tsx)
     → parsePdf / raw text
     → chunkContract (splits into clause chunks)
     → runAiPipeline(chunks, fullText, onStage)
-      Stage 3: extractMetadata   → ContractMeta
-      Stage 4: classifyClauses   → title, clauseRef, type, risk, reviewerNote, isAmendment
-      Stage 5: enrichRiskyClauses → explanation, recommendation (High/Medium only)
-      Stage 6: generateSummary   → overallRisk, topIssues, narrative
+      Stage 3: extractMetadata  → ContractMeta
+      Stage 4: analyzeClauses   → title, clauseRef, type, risk, explanation, recommendation, reviewerNote, isAmendment (classify + enrich in one pass)
+      Stage 5: generateSummary  → overallRisk, topIssues, narrative
   → fires SSE events: { type:"stage"|"done"|"error", ... }
   → client reads stream, advances AnalysisLoader stages in real time
   → on "done": saves ContractAnalysis to Zustand store → redirect to /dashboard
@@ -55,11 +54,12 @@ Upload page (page.tsx)
 |------|---------|
 | `src/lib/types.ts` | All shared types: `ContractAnalysis`, `ContractMeta`, `ClauseAnalysis`, `PipelineEvent` |
 | `src/lib/store.ts` | Zustand store with `persist` — holds `analysis`, `setAnalysis`, `clearAnalysis` |
-| `src/lib/aiPipeline.ts` | All Gemini AI calls — 3 batched calls with JSON schema enforcement |
+| `src/lib/prompts.ts` | All AI system prompts — `META_SYSTEM`, `buildClauseSystemPrompt`, `SUMMARY_SYSTEM` |
+| `src/lib/aiPipeline.ts` | All Groq AI calls — 2 batched calls with JSON schema enforcement |
 | `src/lib/chunkContract.ts` | Splits contract text into clause chunks by heading patterns |
 | `src/lib/parsePdf.ts` | Extracts text from PDF buffer using pdf-parse |
 | `src/app/api/analyze/route.ts` | SSE streaming POST endpoint — fires stage events as pipeline progresses |
-| `src/components/analysis-loader.tsx` | Multi-step typewriter loader — driven by `currentStage` prop (1–7) |
+| `src/components/analysis-loader.tsx` | Multi-step typewriter loader — driven by `currentStage` prop (1–5) |
 | `src/components/app-sidebar.tsx` | App sidebar with nav links, uses `usePathname` for active state |
 
 ### ContractAnalysis Shape
@@ -78,7 +78,7 @@ Upload page (page.tsx)
 ### SSE Protocol
 
 The `/api/analyze` endpoint streams newline-delimited `data: {json}\n\n` events:
-- `{ type: "stage", stage: number, label: string }` — fired at each pipeline stage (1–6)
+- `{ type: "stage", stage: number, label: string }` — fired at each pipeline stage (1–5)
 - `{ type: "done", result: ContractAnalysis }` — final payload
 - `{ type: "error", message: string }` — on failure
 
@@ -99,8 +99,9 @@ Inbox-style split panel:
 ## Key Conventions
 
 - `cn()` from `@/lib/utils` for all conditional class merging
-- All AI calls use `responseMimeType: "application/json"` + `responseJsonSchema` for structured output — no prompt parsing hacks
+- All AI calls use Groq's `response_format: { type: "json_schema", json_schema: { ... } }` for structured output — no prompt parsing hacks
+- All prompts live in `src/lib/prompts.ts`; schemas live inline in `src/lib/aiPipeline.ts`
 - `pdf-parse` and all AI calls are server-side only (API route / lib files without `"use client"`)
 - The dashboard reads from Zustand (not sessionStorage) to avoid SSR hydration mismatches
-- Gemini model constant `MODEL = "gemini-2.5-flash-lite"` is in `aiPipeline.ts`
-- Requires `GEMINI_API_KEY` in `.env.local`
+- Model constants `FAST_MODEL` and `SMART_MODEL` are in `aiPipeline.ts`
+- Requires `GROQ_API_KEY` in `.env.local`
