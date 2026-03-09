@@ -23,8 +23,8 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY! })
 
 // moonshotai/kimi-k2-instruct-0905 — fast classification (supports prompt caching)
 // openai/gpt-oss-120b              — strict structured outputs, summary (supports prompt caching)
-// const FAST_MODEL = "moonshotai/kimi-k2-instruct-0905"
-const FAST_MODEL = "openai/gpt-oss-20b" 
+const FAST_MODEL = "moonshotai/kimi-k2-instruct-0905"
+// const FAST_MODEL = "openai/gpt-oss-20b" 
 const SMART_MODEL = "openai/gpt-oss-120b"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
